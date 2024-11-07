@@ -3,6 +3,7 @@ import logging
 import os
 import fastf1
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from PyQt5.QtWidgets import QApplication, QComboBox, QVBoxLayout, QPushButton, QLabel, QWidget, QMainWindow
 from PyQt5.QtCore import QThread, pyqtSignal
@@ -25,10 +26,10 @@ class LoadTelemetryThread(QThread):
                 os.makedirs(cache_directory)
             fastf1.Cache.enable_cache(cache_directory)
 
-            session = fastf1.get_session(2023, self.circuit_name, 'R')  # The season year
+            session = fastf1.get_session(2024, self.circuit_name, 'R')  # The season year
             session.load()
 
-            driver_laps = session.laps.pick_driver(self.driver_id.upper())
+            driver_laps = session.laps.pick_drivers(self.driver_id.upper())
             if not driver_laps.empty:
                 fastest_lap = driver_laps.pick_fastest()
                 telemetry = fastest_lap.get_telemetry()
@@ -68,7 +69,7 @@ class F1Simulator(QMainWindow):
         self.compare_button.clicked.connect(self.compare_telemetry)
         layout.addWidget(self.compare_button)
 
-        self.figure, self.axs = plt.subplots(3, 1, figsize=(10, 6))
+        self.figure, self.axs = plt.subplots(5, 1, figsize=(10, 10))
         self.canvas = FigureCanvas(self.figure)
         layout.addWidget(self.canvas)
 
@@ -89,6 +90,8 @@ class F1Simulator(QMainWindow):
         session = fastf1.get_session(season_year, 'Bahrain', 'R')  # Use any race to get driver list
         session.load()
         drivers = session.laps['Driver'].unique()
+        self.driver1_dropdown.addItem("None", None)
+        self.driver2_dropdown.addItem("None", None)
         for driver in drivers:
             self.driver1_dropdown.addItem(driver, driver)
             self.driver2_dropdown.addItem(driver, driver)
@@ -103,40 +106,56 @@ class F1Simulator(QMainWindow):
 
         self.canvas.draw()
 
-        self.load_telemetry_thread1 = LoadTelemetryThread(circuit_name, driver1_id)
-        self.load_telemetry_thread2 = LoadTelemetryThread(circuit_name, driver2_id)
+        if driver1_id:
+            self.load_telemetry_thread1 = LoadTelemetryThread(circuit_name, driver1_id)
+            self.load_telemetry_thread1.result_signal.connect(self.plot_telemetry)
+            self.load_telemetry_thread1.start()
 
-        self.load_telemetry_thread1.result_signal.connect(self.plot_telemetry)
-        self.load_telemetry_thread2.result_signal.connect(self.plot_telemetry)
-
-        self.load_telemetry_thread1.start()
-        self.load_telemetry_thread2.start()
+        if driver2_id:
+            self.load_telemetry_thread2 = LoadTelemetryThread(circuit_name, driver2_id)
+            self.load_telemetry_thread2.result_signal.connect(self.plot_telemetry)
+            self.load_telemetry_thread2.start()
 
     def plot_telemetry(self, telemetry, driver_id):
         if telemetry is not None:
             color = 'blue' if driver_id == self.driver1_dropdown.currentData() else 'orange'
             label = f"Driver {driver_id}"
 
-            self.axs[0].plot(telemetry['Date'], telemetry['Speed'], color=color, label=f"{label} Speed (km/h)")
+            lap_time_seconds = telemetry['Distance']
+
+            self.axs[0].plot(lap_time_seconds, telemetry['Speed'], color=color, label=f"{label} Speed (km/h)")
             self.axs[0].set_ylabel("Speed (km/h)")
             self.axs[0].legend(loc="upper right")
             self.axs[0].grid(True)
 
-            self.axs[1].plot(telemetry['Date'], telemetry['Throttle'], color=color, label=f"{label} Throttle (%)")
-            self.axs[1].set_ylabel("Throttle (%)")
+            self.axs[1].plot(lap_time_seconds, telemetry['nGear'], color=color, label=f"{label} Gear")
+            self.axs[1].set_ylabel("Gear")
             self.axs[1].legend(loc="upper right")
             self.axs[1].grid(True)
 
-            self.axs[2].plot(telemetry['Date'], telemetry['Brake'], color=color, label=f"{label} Brake (%)")
-            self.axs[2].set_ylabel("Brake (%)")
+            self.axs[2].plot(lap_time_seconds, telemetry['Throttle'], color=color, label=f"{label} Throttle (%)")
+            self.axs[2].set_ylabel("Throttle (%)")
             self.axs[2].legend(loc="upper right")
             self.axs[2].grid(True)
 
-            self.axs[2].set_xlabel("Time")
+            self.axs[3].plot(lap_time_seconds, telemetry['Brake'], color=color, label=f"{label} Brake (%)")
+            self.axs[3].set_ylabel("Brake (%)")
+            self.axs[3].legend(loc="upper right")
+            self.axs[3].grid(True)
+
+            self.axs[4].plot(lap_time_seconds, telemetry['DRS'], color=color, label=f"{label} DRS")
+            self.axs[4].set_ylabel("DRS")
+            self.axs[4].legend(loc="upper right")
+            self.axs[4].grid(True)
+
+            self.axs[4].set_xlabel("Lap Time (MM:SS)")
+            self.axs[4].xaxis.set_major_formatter(
+                ticker.FuncFormatter(lambda x, pos: f"{int(x // 60)}:{int(x % 60):02d}"))
             self.canvas.draw()
         else:
             logging.error(f"No telemetry data available for driver {driver_id}.")
 
+    
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -150,6 +169,6 @@ if __name__ == "__main__":
         window.height()
     )
 
-    window.show()
+    window.showMaximized()
 
     sys.exit(app.exec_())
