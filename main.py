@@ -3,10 +3,11 @@ import logging
 import os
 import fastf1
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
+import seaborn as sns
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from PyQt5.QtWidgets import QApplication, QComboBox, QVBoxLayout, QPushButton, QLabel, QWidget, QMainWindow
 from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtGui import QIcon
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -42,10 +43,25 @@ class LoadTelemetryThread(QThread):
 
 
 class F1Simulator(QMainWindow):
+    DRIVER_COLORS = {
+        'RUS': 'SkyBlue', 'HAM': 'SkyBlue',  # Mercedes
+        'LEC': 'Red', 'SAI': 'Red',  # Ferrari
+        'VER': 'DarkBlue', 'PER': 'DarkBlue',  # Red Bull
+        'ALO': 'Green', 'STR': 'Green',  # Aston Martin
+        'NOR': 'Orange', 'PIA': 'Orange',  # McLaren
+        'BOT': 'Yellow', 'ZHO': 'Yellow',  # Alfa Romeo
+        'GAS': 'Blue', 'OCO': 'Blue',  # Alpine
+        'MAG': 'White', 'HUL': 'White',  # Haas
+        'TSU': 'Purple', 'DEV': 'Purple',  # Visa cash App RB
+        'ALB': 'Cyan', 'SAR': 'Cyan'  # Williams
+    }
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("F1 Race Strategy Simulator")
         self.setGeometry(0, 0, 1000, 800)
+        self.setStyleSheet("background-color: #AFAFAF ; color: #2B4239;")
+        self.setWindowIcon(QIcon('image/LapMaster.png'))
         self.init_ui()
         self.load_data()
 
@@ -54,22 +70,38 @@ class F1Simulator(QMainWindow):
         layout = QVBoxLayout()
 
         self.circuit_dropdown = QComboBox()
-        layout.addWidget(QLabel("Select Circuit"))
+        self.circuit_dropdown.setStyleSheet("""
+            QComboBox { background-color: grey; color: #2B4239; }
+            QComboBox QAbstractItemView::item:selected { background-color: grey; color: #2B4239; }
+        """)
+        layout.addWidget(QLabel("Select Circuit :"))
         layout.addWidget(self.circuit_dropdown)
 
         self.driver1_dropdown = QComboBox()
-        layout.addWidget(QLabel("Select Driver 1"))
+        self.driver1_dropdown.setStyleSheet("""
+            QComboBox { background-color: grey; color: #2B4239; }
+            QComboBox QAbstractItemView::item:selected { background-color: grey; color: #2B4239; }
+        """)
+        layout.addWidget(QLabel("Select Driver 1 :"))
         layout.addWidget(self.driver1_dropdown)
 
         self.driver2_dropdown = QComboBox()
-        layout.addWidget(QLabel("Select Driver 2"))
+        self.driver2_dropdown.setStyleSheet("""
+            QComboBox { background-color: grey; color: #2B4239; }
+            QComboBox QAbstractItemView::item:selected { background-color: grey; color: #2B4239; }
+        """)
+        layout.addWidget(QLabel("Select Driver 2 :"))
         layout.addWidget(self.driver2_dropdown)
 
         self.compare_button = QPushButton("Compare Telemetry")
+        self.compare_button.setStyleSheet("margin: 0px 500px 0px 500px; padding-bottom: 2px ; background-color: #2B4239; color: #EDEDED; font-size: 30px;")
         self.compare_button.clicked.connect(self.compare_telemetry)
         layout.addWidget(self.compare_button)
 
         self.figure, self.axs = plt.subplots(5, 1, figsize=(10, 10))
+        self.figure.patch.set_facecolor('grey')
+        for ax in self.axs:
+            ax.set_facecolor('grey')  # Set the background color to grey
         self.canvas = FigureCanvas(self.figure)
         layout.addWidget(self.canvas)
 
@@ -87,7 +119,7 @@ class F1Simulator(QMainWindow):
             self.circuit_dropdown.addItem(event['EventName'], event['EventName'])
 
     def load_drivers(self, season_year):
-        session = fastf1.get_session(season_year, 'Bahrain', 'R')  # Use any race to get driver list
+        session = fastf1.get_session(season_year, 'Bahrain', 'R')
         session.load()
         drivers = session.laps['Driver'].unique()
         self.driver1_dropdown.addItem("None", None)
@@ -103,6 +135,7 @@ class F1Simulator(QMainWindow):
 
         for ax in self.axs:
             ax.clear()
+            ax.set_facecolor('grey')
 
         self.canvas.draw()
 
@@ -117,58 +150,62 @@ class F1Simulator(QMainWindow):
             self.load_telemetry_thread2.start()
 
     def plot_telemetry(self, telemetry, driver_id):
+        logging.debug(f"Plotting telemetry for driver {driver_id}")
         if telemetry is not None:
-            color = 'blue' if driver_id == self.driver1_dropdown.currentData() else 'orange'
+            logging.debug(f"Telemetry data: {telemetry}")
+            color = self.DRIVER_COLORS.get(driver_id, 'black')
             label = f"Driver {driver_id}"
 
-            lap_time_seconds = telemetry['Distance']
+            distance = telemetry['Distance']
 
-            self.axs[0].plot(lap_time_seconds, telemetry['Speed'], color=color, label=f"{label} Speed (km/h)")
+            for ax in self.axs:
+                ax.set_facecolor('grey')
+                ax.tick_params(axis='x', colors='black')
+                ax.tick_params(axis='y', colors='black')
+                ax.xaxis.label.set_color('black')
+                ax.yaxis.label.set_color('black')
+                ax.title.set_color('black')
+
+            self.axs[0].plot(distance, telemetry['Speed'], color=color, label=f"{label} Speed (km/h)")
             self.axs[0].set_ylabel("Speed (km/h)")
-            self.axs[0].legend(loc="upper right")
-            self.axs[0].grid(True)
+            self.axs[0].legend(loc="upper right", facecolor='grey', edgecolor='black')
+            self.axs[0].grid(True, color='black')
 
-            self.axs[1].plot(lap_time_seconds, telemetry['nGear'], color=color, label=f"{label} Gear")
+            self.axs[1].plot(distance, telemetry['nGear'], color=color, label=f"{label} Gear")
             self.axs[1].set_ylabel("Gear")
-            self.axs[1].legend(loc="upper right")
-            self.axs[1].grid(True)
+            self.axs[1].legend(loc="upper right", facecolor='grey', edgecolor='black')
+            self.axs[1].grid(True, color='black')
 
-            self.axs[2].plot(lap_time_seconds, telemetry['Throttle'], color=color, label=f"{label} Throttle (%)")
+            self.axs[2].plot(distance, telemetry['Throttle'], color=color, label=f"{label} Throttle (%)")
             self.axs[2].set_ylabel("Throttle (%)")
-            self.axs[2].legend(loc="upper right")
-            self.axs[2].grid(True)
+            self.axs[2].legend(loc="upper right", facecolor='grey', edgecolor='black')
+            self.axs[2].grid(True, color='black')
 
-            self.axs[3].plot(lap_time_seconds, telemetry['Brake'], color=color, label=f"{label} Brake (%)")
+            self.axs[3].plot(distance, telemetry['Brake'], color=color, label=f"{label} Brake (%)")
             self.axs[3].set_ylabel("Brake (%)")
-            self.axs[3].legend(loc="upper right")
-            self.axs[3].grid(True)
+            self.axs[3].legend(loc="upper right", facecolor='grey', edgecolor='black')
+            self.axs[3].grid(True, color='black')
 
-            self.axs[4].plot(lap_time_seconds, telemetry['DRS'], color=color, label=f"{label} DRS")
+            self.axs[4].plot(distance, telemetry['DRS'], color=color, label=f"{label} DRS")
             self.axs[4].set_ylabel("DRS")
-            self.axs[4].legend(loc="upper right")
-            self.axs[4].grid(True)
+            self.axs[4].legend(loc="upper right", facecolor='grey', edgecolor='black')
+            self.axs[4].grid(True, color='black')
 
-            self.axs[4].set_xlabel("Lap Time (MM:SS)")
-            self.axs[4].xaxis.set_major_formatter(
-                ticker.FuncFormatter(lambda x, pos: f"{int(x // 60)}:{int(x % 60):02d}"))
+            self.axs[4].set_xlabel("Distance (m)")
             self.canvas.draw()
         else:
             logging.error(f"No telemetry data available for driver {driver_id}.")
 
-    
-
 if __name__ == "__main__":
+    sns.set_palette("husl")
     app = QApplication(sys.argv)
 
     window = F1Simulator()
-
     window.setGeometry(
         (window.screen().availableGeometry().width() - window.width()) // 2,
         (window.screen().availableGeometry().height() - window.height()) // 2,
         window.width(),
         window.height()
     )
-
     window.showMaximized()
-
     sys.exit(app.exec_())
