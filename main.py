@@ -5,7 +5,7 @@ import fastf1
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from PyQt5.QtWidgets import QApplication, QComboBox, QVBoxLayout, QPushButton, QLabel, QWidget, QMainWindow
+from PyQt5.QtWidgets import QApplication, QComboBox, QVBoxLayout, QPushButton, QLabel, QWidget, QMainWindow, QMessageBox
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtGui import QIcon
 
@@ -139,15 +139,33 @@ class F1Simulator(QMainWindow):
 
         self.canvas.draw()
 
+        self.loading_message = QMessageBox(self)
+        self.loading_message.setWindowTitle("Loading")
+        self.loading_message.setText("Loading telemetry data, please wait...")
+        self.loading_message.setStandardButtons(QMessageBox.NoButton)
+        self.loading_message.show()
+
         if driver1_id:
             self.load_telemetry_thread1 = LoadTelemetryThread(circuit_name, driver1_id)
-            self.load_telemetry_thread1.result_signal.connect(self.plot_telemetry)
+            self.load_telemetry_thread1.result_signal.connect(self.handle_telemetry_result)
             self.load_telemetry_thread1.start()
 
         if driver2_id:
             self.load_telemetry_thread2 = LoadTelemetryThread(circuit_name, driver2_id)
-            self.load_telemetry_thread2.result_signal.connect(self.plot_telemetry)
+            self.load_telemetry_thread2.result_signal.connect(self.handle_telemetry_result)
             self.load_telemetry_thread2.start()
+
+    def handle_telemetry_result(self, telemetry, driver_id):
+        self.loading_message.hide()
+        if telemetry is not None:
+            self.plot_telemetry(telemetry, driver_id)
+        else:
+            error_message = QMessageBox(self)
+            error_message.setWindowTitle("Error")
+            error_message.setText(
+                f"No telemetry data available for driver {driver_id} in this season. Please change the driver.")
+            error_message.setStandardButtons(QMessageBox.Ok)
+            error_message.exec_()
 
     def plot_telemetry(self, telemetry, driver_id):
         logging.debug(f"Plotting telemetry for driver {driver_id}")
