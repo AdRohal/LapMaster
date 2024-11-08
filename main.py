@@ -58,7 +58,7 @@ class F1Simulator(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("F1 Race Strategy Simulator")
+        self.setWindowTitle("F1 Telemetry Analysis: LapMaster")
         self.setGeometry(0, 0, 1000, 800)
         self.setStyleSheet("background-color: #AFAFAF ; color: #2B4239;")
         self.setWindowIcon(QIcon('image/LapMaster.png'))
